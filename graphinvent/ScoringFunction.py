@@ -10,6 +10,14 @@ from rdkit.Chem import QED, AllChem
 import numpy as np
 import sklearn
 from sklearn import svm
+import joblib
+import subprocess
+import pandas as pd
+import rdkit
+from guacamol.common_scoring_functions import CNS_MPO_ScoringFunction
+from keras.models import load_model
+from mol2vec.features import mol2alt_sentence, mol2sentence, MolSentence, DfVec, sentences2vec
+from gensim.models import word2vec
 
 class ScoringFunction:
     """
@@ -107,6 +115,8 @@ class ScoringFunction:
         """
         contributions_to_score = []
 
+
+
         for score_component in self.score_components:
             if "target_size" in score_component:
 
@@ -125,7 +135,6 @@ class ScoringFunction:
                     - torch.abs(n_nodes - target_size)
                     / (max_nodes - target_size)
                 )
-
                 contributions_to_score.append(score)
 
             elif score_component == "QED":
@@ -141,14 +150,38 @@ class ScoringFunction:
                 score = torch.tensor(qed, device=self.device)
 
                 contributions_to_score.append(score)
+            
+            elif score_component == "CNSMPO":
+                CNS = CNS_MPO_ScoringFunction()
+                mpo = []
+                for graph in graphs:
+                    try:
+                        rdkit.Chem.SanitizeMol(graph.get_molecule())
+                        smiles = graph.get_smiles()
+                        if (len(smiles)==0):
+                            mpo.append(0.0)
+                            continue
+                        molscore = CNS.raw_score(smiles)
+                        mpo.append(molscore)
+                    except:
+                        mpo.append(0.0)
+                score = torch.tensor(mpo, device=self.device)
+                contributions_to_score.append(score)
 
             elif "activity" in score_component:
-                mols = [graph.molecule for graph in graphs]
+                #mols = [graph.molecule for graph in graphs]
 
                 # `score_component` has to be the key to the QSAR model in the
                 # `self.qsar_models` dict
                 qsar_model = self.qsar_models[score_component]
-                score      = self.compute_activity(mols, qsar_model)
+                preds1     = self.compute_activity(graphs, qsar_model)
+                #preds2     = self.compute_activity_keras(graphs)
+
+                #preds = 0.65*np.array(preds1) + 0.35*np.array(preds2)
+
+                print(preds1)
+
+                score = torch.tensor(preds1, device=self.device)
 
                 contributions_to_score.append(score)
 
@@ -159,34 +192,98 @@ class ScoringFunction:
 
         return contributions_to_score
 
-    def compute_activity(self, mols : list,
-                         activity_model : sklearn.svm.classes.SVC) -> list:
-        """
-        Note: this function may have to be tuned/replicated depending on how
-        the activity model is saved.
+    # def compute_activity(self, mols : list,
+    #                      activity_model : sklearn.svm.classes.SVC) -> list:
+    #     """
+    #     Note: this function may have to be tuned/replicated depending on how
+    #     the activity model is saved.
 
-        Args:
-        ----
-            mols (list) : Contains `rdkit.Mol` objects corresponding to molecular
-                          graphs sampled.
-            activity_model (sklearn.svm.classes.SVC) : Pre-trained QSAR model.
+    #     Args:
+    #     ----
+    #         mols (list) : Contains `rdkit.Mol` objects corresponding to molecular
+    #                       graphs sampled.
+    #         activity_model (sklearn.svm.classes.SVC) : Pre-trained QSAR model.
 
-        Returns:
-        -------
-            activity (list) : Contains predicted activities for input molecules.
-        """
-        n_mols   = len(mols)
-        activity = torch.zeros(n_mols, device=self.device)
+    #     Returns:
+    #     -------
+    #         activity (list) : Contains predicted activities for input molecules.
+    #     """
+    #     n_mols   = len(mols)
+    #     activity = torch.zeros(n_mols, device=self.device)
 
-        for idx, mol in enumerate(mols):
+    #     for idx, mol in enumerate(mols):
+    #         try:
+    #             fingerprint   = AllChem.GetMorganFingerprintAsBitVect(mol,
+    #                                                                   2,
+    #                                                                   nBits=2048)
+    #             ecfp4         = np.zeros((2048,))
+    #             DataStructs.ConvertToNumpyArray(fingerprint, ecfp4)
+    #             activity[idx] = activity_model.predict_proba([ecfp4])[0][1]
+    #         except:
+    #             pass  # activity[idx] will remain 0.0
+
+    #     return activity
+
+    def compute_activity(self, molecular_graphs : list, model_path: str) -> list:
+        path = "./graphinvent/models/BBB/data"
+        failed_idx = []   
+        f = open(path+"/smiles.smi","w")
+        for idx, mol in enumerate(molecular_graphs):
             try:
-                fingerprint   = AllChem.GetMorganFingerprintAsBitVect(mol,
-                                                                      2,
-                                                                      nBits=2048)
-                ecfp4         = np.zeros((2048,))
-                DataStructs.ConvertToNumpyArray(fingerprint, ecfp4)
-                activity[idx] = activity_model.predict_proba([ecfp4])[0][1]
+                rdkit.Chem.SanitizeMol(mol.get_molecule())
+                smiles = mol.get_smiles()
+                if (len(smiles)==0):
+                    failed_idx.append(idx)
+                    continue
+                f.write(smiles+"\n")
             except:
-                pass  # activity[idx] will remain 0.0
+                failed_idx.append(idx)
+        f.close()
+        gen_features = ['java', '-jar', './graphinvent/models/BBB/PaDEL-Descriptor/PaDEL-Descriptor.jar','-descriptortypes', './graphinvent/models/BBB/PaDEL-Descriptor/descriptors.xml', '-dir', path, '-file', path+'/feature.csv', '-2d', '-fingerprints', '-removesalt', '-detectaromaticity', '-standardizenitro', '-usefilenameasmolname', '-retainorder']
+        while True:
+            try:
+                subprocess.run(gen_features,timeout=60)
+            except:
+                print("PaDEL timed-out, trying again...")
+                continue
+            break
+        features = pd.read_csv(path+"/feature.csv",error_bad_lines=False)
+        features = features[['AATS4s','TopoPSA', 'GATS8s']]
+        features.fillna(0,inplace=True)
+        model = joblib.load(model_path)
+        preds = model.predict_proba(features)[:,1]
+        preds = self.insert_zeros(preds,failed_idx,len(molecular_graphs))
+        return (preds)
 
-        return activity
+    def insert_zeros(self,preds:list,failed:list,length:int) -> list:
+        score = []
+        counter = 0
+        for i in range(length):
+            if i in failed:
+                score.append(0)
+            else:
+                score.append(preds[counter])
+                counter +=1
+        return score
+    
+    def compute_activity_keras(self, molecular_graphs : list) -> list:
+        wmodel = word2vec.Word2Vec.load('./graphinvent/models/model_300dim.pkl')
+        loaded_model = load_model("./graphinvent/models/a_sync") 
+        preds = []
+        for mol in molecular_graphs:
+            try:
+                rdkit.Chem.SanitizeMol(mol.get_molecule())
+                smiles = mol.get_smiles()
+                if (len(smiles)==0):
+                    preds.append(0)
+                vec = []
+                unseen_vec = wmodel.wv.word_vec('UNK')    
+                sentence = MolSentence(mol2alt_sentence(rdkit.Chem.MolFromSmiles(smiles), 1))
+                keys = set(wmodel.wv.vocab.keys())
+                vec.append(sum([wmodel.wv.word_vec(y) if y in set(sentence) & keys else unseen_vec for y in sentence]))
+                score = loaded_model.predict(np.array(vec))[0,1]
+                preds.append(score)
+            except:
+                preds.append(0)
+        preds = np.array(preds)
+        return (preds)

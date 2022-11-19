@@ -100,7 +100,8 @@ class S2V(gnn.summation_mpnn.SummationMPNN):
             node_features=self.constants.n_node_features,
             hidden_node_features=self.constants.hidden_node_features,
             lstm_computations=self.constants.s2v_lstm_computations,
-            memory_size=self.constants.s2v_memory_size
+            memory_size=self.constants.s2v_memory_size,
+            constants = self.constants
         )
 
         self.APDReadout = gnn.modules.GlobalReadout(

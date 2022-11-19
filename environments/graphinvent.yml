@@ -1,4 +1,4 @@
-name: graphinvent
+name: gi
 channels:
   - pytorch
   - anaconda

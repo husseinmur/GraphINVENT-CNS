@@ -16,6 +16,15 @@ from torch.utils.tensorboard import SummaryWriter
 from parameters.constants import constants
 import util
 
+from guacamol.common_scoring_functions import CNS_MPO_ScoringFunction
+from rdkit import Chem
+from mol2vec.features import mol2alt_sentence, mol2sentence, MolSentence, DfVec, sentences2vec
+from gensim.models import word2vec
+import subprocess
+from sklearn.preprocessing import StandardScaler
+from keras.models import load_model
+import pandas as pd
+
 
 class Analyzer:
     """
@@ -542,6 +551,91 @@ class Analyzer:
             return (fraction_valid,
                     fraction_valid_properly_terminated,
                     fraction_properly_terminated)
+        
+        def get_average_calculated_CNSMPO_score(molecular_graphs : list) -> float:
+            CNS = CNS_MPO_ScoringFunction()
+            scores = []
+            for mol in molecular_graphs:
+                try:
+                    rdkit.Chem.SanitizeMol(mol.get_molecule())
+                    smiles = mol.get_smiles()
+                    if (len(smiles)==0):
+                        continue
+                    score = CNS.raw_score(smiles)
+                    scores.append(score)
+                except:
+                    pass
+            average = np.mean(scores)
+            return (average)
+        
+        def get_average_predicted_CNSMPO_score(molecular_graphs : list) -> float:
+            model = word2vec.Word2Vec.load('./graphinvent/models/model_300dim.pkl')
+            dim_input = 300
+            dim_output = 1
+            cnsmpoModel = torch.nn.Sequential (
+                torch.nn.Linear(dim_input, 256),
+                torch.nn.ReLU6(),
+                torch.nn.Linear(256, 256),
+                torch.nn.ReLU6(),
+                torch.nn.Linear(256, 32),
+                torch.nn.ReLU6(),
+                torch.nn.Linear(32, dim_output),
+                torch.nn.ReLU6()
+                )
+            cnsmpoModel.load_state_dict(torch.load("./graphinvent/models/cnsmpo_model.pt"))
+            scores = []
+            for mol in molecular_graphs:
+                try:
+                    rdkit.Chem.SanitizeMol(mol.get_molecule())
+                    smiles = mol.get_smiles()
+                    if (len(smiles)==0):
+                        continue
+                    vec = []
+                    unseen_vec = model.wv.word_vec('UNK')    
+                    sentence = MolSentence(mol2alt_sentence(Chem.MolFromSmiles(smiles), 1))
+                    keys = set(model.wv.vocab.keys())
+                    vec.append(sum([model.wv.word_vec(y) if y in set(sentence) & keys else unseen_vec for y in sentence]))
+                    score = cnsmpoModel(torch.Tensor(vec)).detach().numpy()[0,0]
+                    scores.append(score)
+                except:
+                    pass
+            average = np.mean(scores)
+            return (average)
+        
+        def calc_BBB_frac(molecular_graphs : list) -> float:
+            path = "./graphinvent/models/BBB/data"
+            sc = StandardScaler()
+            model = load_model(path+"/DeePredmodel.h5",compile=False)
+            fit_data = pd.read_csv(path+"/data.csv")
+            fit_data = sc.fit_transform(fit_data)   
+            f = open(path+"/smiles.smi","w")
+            for mol in molecular_graphs:
+                try:
+                    rdkit.Chem.SanitizeMol(mol.get_molecule())
+                    smiles = mol.get_smiles()
+                    if (len(smiles)==0):
+                        continue
+                    f.write(smiles+"\n")
+                except:
+                    pass
+            f.close()
+            gen_features = ['java', '-jar', './graphinvent/models/BBB/PaDEL-Descriptor/PaDEL-Descriptor.jar','-descriptortypes', './graphinvent/models/BBB/PaDEL-Descriptor/descriptors.xml', '-dir', path, '-file', path+'/feature.csv', '-2d', '-fingerprints', '-removesalt', '-detectaromaticity', '-standardizenitro', '-usefilenameasmolname']
+            try:
+                subprocess.run(gen_features,timeout=60)
+            except:
+                print("PaDEL timed-out")
+            features = pd.read_csv(path+"/feature.csv",error_bad_lines=False)
+            features.drop(['Name'],axis=1,inplace=True)
+            features.dropna(inplace=True)
+            try:
+                features = sc.transform(features)
+                prediction = model.predict(features).round()[:,0].astype(int)
+                bbb = np.count_nonzero(prediction == 1)
+                frac = bbb/len(prediction)
+            except:
+                frac = float('nan')
+            return (frac)
+
 
         # get the distribution of the number of atoms per graph
         n_nodes_hist, avg_n_nodes = _get_n_nodes_distribution(
@@ -579,6 +673,10 @@ class Analyzer:
                 fraction_pt         # fraction properly terminated
             )                     = _get_fraction_valid(molecular_graphs=molecules,
                                                         termination=termination)
+        
+        average_calculated_CNSMPO_score = get_average_calculated_CNSMPO_score(molecular_graphs=molecules)
+        average_predicted_CNSMPO_score = get_average_predicted_CNSMPO_score(molecular_graphs=molecules)
+        BBB_frac = calc_BBB_frac(molecular_graphs=molecules)
 
         properties = {
             (epoch_key, "n_nodes_hist")                      : n_nodes_hist,
@@ -593,7 +691,10 @@ class Analyzer:
             (epoch_key, "fraction_valid_properly_terminated"): fraction_valid_pt,
             (epoch_key, "fraction_properly_terminated")      : fraction_pt,
             (epoch_key, "numh_hist")                         : numh_hist,
-            (epoch_key, "chirality_hist")                    : chirality_hist
+            (epoch_key, "chirality_hist")                    : chirality_hist,
+            (epoch_key, "avg_calc_CNSMPO")                   : average_calculated_CNSMPO_score,
+            (epoch_key, "avg_pred_CNSMPO")                   : average_predicted_CNSMPO_score,
+            (epoch_key, "BBB_frac")                          : BBB_frac,
         }
 
         return properties

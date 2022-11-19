@@ -546,12 +546,18 @@ class Workflow:
         for step in range(start_step, end_step):
 
             self.current_epoch = step
-            self.learning_step()
+            try:
+                self.learning_step()
+            except:
+                pass
 
             # evaluate model every `sample_every` epochs (not every epoch)
             if step % self.constants.sample_every == 0:
-                score = self.evaluate_model(model_to_evaluate=self.agent_model,
+                try:
+                    score = self.evaluate_model(model_to_evaluate=self.agent_model,
                                             label="eval")
+                except:
+                    score = 0
 
                 # save the score to the analyzer
                 self.analyzer.save_metrics(step=step, score=score)
@@ -782,18 +788,22 @@ class Workflow:
                 batch = [b.to("cuda", non_blocking=True) for b in batch]
 
             nodes, edges, target_output = batch
-            output = self.model(nodes, edges)
+            try:
+                output = self.model(nodes, edges)
 
-            self.model.zero_grad()
-            self.optimizer.zero_grad()
+                self.model.zero_grad()
+                self.optimizer.zero_grad()
 
-            batch_loss = self.loss(output=output, target_output=target_output)
-            training_loss_tensor[batch_idx] = batch_loss
+                batch_loss = self.loss(output=output, target_output=target_output)
+                training_loss_tensor[batch_idx] = batch_loss
 
-            # backpropagate
-            batch_loss.backward()
-            self.optimizer.step()
-            self.scheduler.step()
+                # backpropagate
+                batch_loss.backward()
+                self.optimizer.step()
+                self.scheduler.step()
+
+            except:
+                training_loss_tensor[batch_idx] = 0
 
         return torch.mean(training_loss_tensor)
 
@@ -823,10 +833,13 @@ class Workflow:
                     batch = [b.to("cuda", non_blocking=True) for b in batch]
 
                 nodes, edges, target_output = batch
-                output = self.model(nodes, edges)
+                try:
+                    output = self.model(nodes, edges)
 
-                batch_loss = self.loss(output=output, target_output=target_output)
-                validation_loss_tensor[batch_idx] = batch_loss
+                    batch_loss = self.loss(output=output, target_output=target_output)
+                    validation_loss_tensor[batch_idx] = batch_loss
+                except:
+                    validation_loss_tensor[batch_idx] = 0
 
         return torch.mean(validation_loss_tensor)
 

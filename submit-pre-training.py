@@ -17,34 +17,36 @@ import torch
 
 
 # define what you want to do for the specified job(s)
-DATASET          = "gdb13_1K-debug"    # dataset name in "./data/pre-training/"
+DATASET          = "CNS"    # dataset name in "./data/pre-training/"
 JOB_TYPE         = "train"             # "preprocess", "train", "generate", or "test"
-JOBDIR_START_IDX = 0                   # where to start indexing job dirs
+JOBDIR_START_IDX = 11
+
+                   # where to start indexing job dirs
 N_JOBS           = 1                   # number of jobs to run per model
 RESTART          = False               # whether or not this is a restart job
 FORCE_OVERWRITE  = True                # overwrite job directories which already exist
-JOBNAME          = "example-job-name"  # used to create a sub directory
+JOBNAME          = "CNS"  # used to create a sub directory
 
 # if running using SLURM sbatch, specify params below
-USE_SLURM = False                        # use SLURM or not
+USE_SLURM = True                        # use SLURM or not
 RUN_TIME  = "1-00:00:00"                 # hh:mm:ss
-MEM_GB    = 20                           # required RAM in GB
+MEM_GB    = 16                           # required RAM in GB
 
 # for SLURM jobs, set partition to run job on (preprocessing jobs run entirely on
 # CPU, so no need to request GPU partition; all other job types benefit from running
 # on a GPU)
 if JOB_TYPE == "preprocess":
-    PARTITION     = "core"
+    PARTITION     = "main"
     CPUS_PER_TASK = 1
 else:
-    PARTITION     = "gpu"
+    PARTITION     = "main"
     CPUS_PER_TASK = 4
 
 # set paths here
 HOME             = str(Path.home())
-PYTHON_PATH      = f"{HOME}/miniconda3/envs/graphinvent/bin/python"
-GRAPHINVENT_PATH = "./graphinvent/"
-DATA_PATH        = "./data/pre-training/"
+PYTHON_PATH      = "/home/mhm42/.conda/envs/gi/bin/python"
+GRAPHINVENT_PATH = "/home/mhm42/GraphINVENT/graphinvent/"
+DATA_PATH        = "/home/mhm42/GraphINVENT/data/pre-training/"
 
 if torch.cuda.is_available():
     DEVICE = "cuda"
@@ -53,13 +55,14 @@ else:
 
 # define dataset-specific parameters
 params = {
-    "atom_types"   : ["C", "N", "O", "S", "Cl"],
+    "atom_types"   : ['C', 'N', 'O', 'F', 'P', 'S', 'Cl', 'Br', 'I'],
     "formal_charge": [-1, 0, +1],
-    "max_n_nodes"  : 13,
+    "max_n_nodes"  : 32,
+    "use_aromatic_bonds" : True,
     "job_type"     : JOB_TYPE,
     "dataset_dir"  : f"{DATA_PATH}{DATASET}/",
     "restart"      : RESTART,
-    "model"        : "GGNN",
+    "model"        : "MNN",
     "sample_every" : 2,
     "init_lr"      : 1e-4,
     "epochs"       : 100,
@@ -191,12 +194,12 @@ def write_submission_script(job_dir : str, job_idx : int, job_type : str, max_n_
         submit_file.write(f"#SBATCH --job-name={job_type}{max_n_nodes}_{job_idx}\n")
         submit_file.write(f"#SBATCH --output={job_type}{max_n_nodes}_{job_idx}o\n")
         submit_file.write(f"#SBATCH --time={runtime}\n")
-        submit_file.write(f"#SBATCH --mem={mem}g\n")
+        #submit_file.write(f"#SBATCH --mem={mem}g\n")
         submit_file.write(f"#SBATCH --partition={ptn}\n")
         submit_file.write("#SBATCH --nodes=1\n")
         submit_file.write(f"#SBATCH --cpus-per-task={cpu_per_task}\n")
-        if ptn == "gpu":
-            submit_file.write("#SBATCH --gres=gpu:1\n")
+        if JOB_TYPE != "preprocess":
+            submit_file.write("#SBATCH --gres=gpu:0\n")
         submit_file.write("hostname\n")
         submit_file.write("export QT_QPA_PLATFORM='offscreen'\n")
         submit_file.write(f"{python_bin_path} {GRAPHINVENT_PATH}main.py --job-dir {job_dir}")

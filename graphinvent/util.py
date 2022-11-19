@@ -15,6 +15,7 @@ import rdkit
 from rdkit import RDLogger
 from rdkit.Chem import MolToSmiles
 from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
 
 # load GraphINVENT-specific functions
 from parameters.constants import constants
@@ -179,8 +180,9 @@ def get_restart_epoch() -> Union[int, str]:
         row             = -1
         while not isinstance(epoch, int):
             epoch_key = read_row(path=generation_path, row=row, col=0)
+            print(epoch_key)
             try:
-                epoch = int(epoch_key[6:])
+                epoch = [int(s) for s in epoch_key.split() if s.isdigit()][0]
             except ValueError:
                 epoch = "NA"
             row      -= 1
@@ -311,10 +313,16 @@ def properties_to_csv(prop_dict : dict, csv_filename : str,
             float(prop_dict[(epoch_key, "fraction_properly_terminated")]),
             5
         )
+        avg_calc_CNSMPO = prop_dict[(epoch_key, "avg_calc_CNSMPO")]
+        avg_pred_CNSMPO = prop_dict[(epoch_key, "avg_pred_CNSMPO")]
+        BBB_frac = prop_dict[(epoch_key, "BBB_frac")]
     except KeyError:
         run_time      = "NA"
         frac_valid_pt = "NA"
         frac_pt       = "NA"
+        avg_calc_CNSMPO = float('nan')
+        avg_pred_CNSMPO = float('nan')
+        BBB_frac = float('nan')
 
     (norm_n_nodes_hist,
      norm_atom_type_hist,
@@ -330,6 +338,7 @@ def properties_to_csv(prop_dict : dict, csv_filename : str,
             # write the file header
             output_file.write(
                 "set, fraction_valid, fraction_valid_pt, fraction_pt, run_time, "
+                "frac_BBB, avg_calc_CNSMPO, avg_pred_CNSMPO, "
                 "avg_n_nodes, avg_n_edges, fraction_unique, atom_type_hist, "
                 "formal_charge_hist, numh_hist, chirality_hist, "
                 "n_nodes_hist, n_edges_hist, edge_feature_hist\n"
@@ -339,6 +348,7 @@ def properties_to_csv(prop_dict : dict, csv_filename : str,
     with open(csv_filename, "a") as output_file:
         output_file.write(
             f"{epoch_key}, {frac_valid:.3f}, {frac_valid_pt}, {frac_pt}, {run_time}, "
+            f"{BBB_frac:.3f}, {avg_calc_CNSMPO:.3f}, {avg_pred_CNSMPO:.3f}, "
             f"{avg_n_nodes:.3f}, {avg_n_edges:.3f}, {frac_unique:.3f}, "
             f"{norm_atom_type_hist}, {norm_formal_charge_hist}, "
             f"{norm_numh_hist}, {norm_chirality_hist}, {norm_n_nodes_hist}, "
@@ -424,6 +434,7 @@ def read_row(path : str, row : int, col : int) -> np.ndarray:
                              skip_header=1,
                              usecols=col)
     data = np.array(data)
+    print(row)
     return data[:][row]
 
 def suppress_warnings() -> None:
