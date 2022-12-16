@@ -118,11 +118,9 @@ parameters = {
     "min_rel_lr"          : 0.0001,
     "decoding_route"      : "bfs",
     "activity_model_dir"  : "data/fine-tuning/",
-    # "score_components"    : ["QED", "a_sync_activity", "CNSMPO", "target_size=23"],
-    # "score_thresholds"    : [0.5, 0.5, 0.95, 0.0],  # 0.0 essentially means no threshold
     "score_components"    : ["a_sync_activity"],
-    "score_thresholds"    : [0.5],  # 0.0 essentially means no threshold
-    "score_type"          : "binary",
+    "score_thresholds"    : [0.0],  # 0.0 essentially means no threshold
+    "score_type"          : "continuous",
     "qsar_models"         : {"a_sync_activity": "data/fine-tuning/agg.joblib"},
     "pretrained_model_dir": "output/",
     "sigma"               : 20,

@@ -175,13 +175,11 @@ class ScoringFunction:
                 # `self.qsar_models` dict
                 qsar_model = self.qsar_models[score_component]
                 preds1     = self.compute_activity(graphs, qsar_model)
-                #preds2     = self.compute_activity_keras(graphs)
+                preds2     = self.compute_activity_keras(graphs)
 
-                #preds = 0.65*np.array(preds1) + 0.35*np.array(preds2)
+                preds = 0.78*np.array(preds1) + 0.22*np.array(preds2)
 
-                print(preds1)
-
-                score = torch.tensor(preds1, device=self.device)
+                score = torch.tensor(preds, device=self.device)
 
                 contributions_to_score.append(score)
 
