@@ -9,15 +9,6 @@ An implementation of the GraphINVENT framework using curated data of CNS molecul
 This work is based on GraphINVENT framework:
 https://github.com/MolecularAI/GraphINVENT
 
-It also uses the following filters/benchmarkers to test resulting molecules:
-* DeePred-BBB: A Blood Brain Barrier Permeability Prediction Model With Improved Accuracy
-https://github.com/12rajnish/DeePred-BBB
-
-* GuacaMol:
-https://github.com/BenevolentAI/guacamol
-
-The weights of the embedding layer in the LSTM QSAR model were initialized to the weights of the pretrained word2vec model "Mol2Vec":
-https://github.com/samoturk/mol2vec
 ```
 @article{mercado2020graph,
   author = "Rocío Mercado and Tobias Rastemo and Edvard Lindelöf and Günter Klambauer and Ola Engkvist and Hongming Chen and Esben Jannik Bjerrum",
@@ -37,6 +28,18 @@ https://github.com/samoturk/mol2vec
   doi = "10.1002/ail2.18"
 }
 ```
+
+
+It also makes use of the following filters/benchmarkers to test resulting molecules:
+* DeePred-BBB: A Blood Brain Barrier Permeability Prediction Model With Improved Accuracy
+https://github.com/12rajnish/DeePred-BBB
+
+* GuacaMol:
+https://github.com/BenevolentAI/guacamol
+
+The weights of the embedding layer in the LSTM QSAR model were initialized to the weights of the pretrained word2vec model "Mol2Vec":
+https://github.com/samoturk/mol2vec
+
 
 ### Related work
 #### MPNNs
