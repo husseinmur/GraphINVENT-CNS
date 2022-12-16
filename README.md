@@ -31,21 +31,17 @@ This work is based on GraphINVENT framework:
 ### Related work
 #### MPNNs
 The MPNN implementations used in this work were pulled from Edvard Lindelöf's repo in October 2018, while he was a masters student in the MAI group. This work is available at
-
-[repo]https://github.com/edvardlindelof/graph-neural-networks-for-drug-discovery.
+https://github.com/edvardlindelof/graph-neural-networks-for-drug-discovery.
 
 His master's thesis, describing the EMN implementation, can be found at
 
 https://odr.chalmers.se/handle/20.500.12380/256629.
 
 RL-GraphINVENT
-[repo](https://github.com/olsson-group/RL-GraphINVENT) and [paper](https://doi.org/10.33774/chemrxiv-2021-9w3tc). Her work was presented at the [RL4RealLife](https://sites.google.com/view/RL4RealLife) workshop at ICML 2021.
+https://github.com/olsson-group/RL-GraphINVENT and(https://doi.org/10.33774/chemrxiv-2021-9w3tc).
 
 Graph traversal algorithms in GraphINVENT
-[this](https://doi.org/10.33774/chemrxiv-2021-5c5l1)
+(https://doi.org/10.33774/chemrxiv-2021-5c5l1)
 
 ## License
 GraphINVENT is licensed under the MIT license and is free and provided as-is.
-
-## Link
-https://github.com/MolecularAI/GraphINVENT/
