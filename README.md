@@ -7,6 +7,7 @@ An implementation of the GraphINVENT framework using curated data of CNS molecul
 
 ## References
 This work is based on GraphINVENT framework:
+
 https://github.com/MolecularAI/GraphINVENT
 
 ```
@@ -35,9 +36,11 @@ It also makes use of the following filters/benchmarkers to test resulting molecu
 https://github.com/12rajnish/DeePred-BBB
 
 * GuacaMol:
+
 https://github.com/BenevolentAI/guacamol
 
 The weights of the embedding layer in the LSTM QSAR model were initialized to the weights of the pretrained word2vec model "Mol2Vec":
+
 https://github.com/samoturk/mol2vec
 
 
